@@ -160,9 +160,9 @@ action:
         - condition: template
           value_template: "{{ wait.trigger.payload_json['type'] == 'end' }}"
         - delay:
-          hours: 0
-          minutes: 0
-          seconds: 30
+            hours: 0
+            minutes: 0
+            seconds: 30
         - choose:
           - conditions: "{{ not group_target }}"
             sequence:
