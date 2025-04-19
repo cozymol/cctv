@@ -169,8 +169,8 @@ action:
                 data: 
                   tag: '{{ id }}'
                   group: 'frigate-notification-{{ camera }}'
-                  url: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # iOS
-                  clickAction: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # Android
+                  url: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # ios
+                  clickAction: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4' # Android
                   image: '/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
                   sound: none
                   attachment: # iOS
@@ -179,7 +179,7 @@ action:
                   actions:
                     - action: URI
                       title: View Clip
-                      uri: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8'
+                      uri: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4'
                     - action: URI
                       title: View Snapshot
                       uri: '{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg'
@@ -193,8 +193,8 @@ action:
                 data:
                   tag: '{{ id }}'
                   group: 'frigate-notification-{{ camera }}'
-                  url: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # iOS
-                  clickAction: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # Android
+                  url: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # ios
+                  clickAction: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4' # Android
                   image: '/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
                   sound: none
                   attachment: # iOS
@@ -203,7 +203,7 @@ action:
                   actions:
                     - action: URI
                       title: View Clip
-                      uri: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8'
+                      uri: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/clip.mp4'
                     - action: URI
                       title: View Snapshot
                       uri: '{{base_url}}/api/frigate/notifications/{{id}}/snapshot.jpg'
