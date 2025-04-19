@@ -1,0 +1,177 @@
+blueprint:
+  name: Frigate API Notification
+  description: |
+    ## Frigate Mobile App Notification für API-Events
+    Dieser Blueprint sendet eine Benachrichtigung an dein Gerät, wenn ein Frigate-Event über die API erstellt wird. Die Benachrichtigung enthält zunächst das Thumbnail der Erkennung und wird aktualisiert, um umsetzbare Benachrichtigungen zu enthalten, mit denen du den gespeicherten Clip/Snapshot anzeigen oder die Benachrichtigung für eine konfigurierbare Zeit stummschalten kannst.
+    Dieser Blueprint ist speziell für Setups konzipiert, die die Frigate REST API anstelle von MQTT-Events verwenden.
+  domain: automation
+  input:
+    camera:
+      name: Frigate Camera
+      description: Der Name der Kamera, wie in deiner Frigate-Konfiguration definiert.
+    notify_device:
+      name: Device
+      description: Das Gerät muss die offizielle Home Assistant App verwenden, um Benachrichtigungen zu erhalten.
+      default: false
+      selector:
+        device:
+          integration: mobile_app
+    notify_group:
+      name: Notification Group
+      description: Der Name der Benachrichtigungsgruppe.
+      default: ""
+    base_url:
+      name: (Optional) Base URL
+      description: >
+        Die externe URL für deine Home Assistant-Instanz.
+      default: ""
+    presence_filter:
+      name: (Optional) Presence Filter
+      description: Nur benachrichtigen, wenn die ausgewählte Anwesenheitsentität nicht "home" ist.
+      default: ""
+      selector:
+        entity:
+    cooldown:
+      name: (Optional) Cooldown
+      description: Verzögerung vor dem Senden einer weiteren Benachrichtigung für diese Kamera nach dem letzten Ereignis.
+      default: 30
+      selector:
+        number:
+          max: 300
+          min: 0
+          unit_of_measurement: seconds
+    silence_timer:
+      name: (Optional) Silence Notifications
+      description: >
+        Wie lange Benachrichtigungen für diese Kamera stummgeschaltet werden sollen, wenn dies als Teil der
+        umsetzbaren Benachrichtigung angefordert wird.
+      default: 30
+      selector:
+        number:
+          max: 300
+          min: 0
+          unit_of_measurement: minutes
+    event_sensor:
+      name: Frigate Event Sensor
+      description: Der Frigate-Event-Sensor, der die neuesten Events verfolgt.
+      selector:
+        entity:
+          domain: sensor
+          integration: frigate
+
+mode: single
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input event_sensor
+
+variables:
+  camera: !input camera
+  camera_name: "{{ camera | replace('_', ' ') | title }}"
+  event_data: "{{ state_attr(trigger.entity_id, 'event') }}"
+  id: "{{ event_data.id if event_data else none }}"
+  object: "{{ event_data.label if event_data else 'unknown' }}"
+  label: "{{ object | title }}"
+  base_url: !input base_url
+  group_target: !input notify_group
+  presence_entity: !input presence_filter
+
+condition:
+  - "{{ id != none }}"
+  - "{{ event_data.camera == camera }}"
+  - "{{ not presence_entity or not is_state(presence_entity, 'home') }}"
+
+action:
+  - choose:
+    - conditions: "{{ not group_target }}"
+      sequence:
+        - device_id: !input notify_device
+          domain: mobile_app
+          type: notify
+          message: 'Ein {{ label }} wurde auf der {{ camera_name }} Kamera erkannt.'
+          data: 
+            tag: '{{ id }}'
+            group: 'frigate-notification-{{ camera }}'
+            image: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg?format=android' # Android
+            attachment: # iOS
+              url: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg'
+    default:
+      - service: "notify.{{ group_target }}"
+        data:
+          message: 'Ein {{ label }} wurde auf der {{ camera_name }} Kamera erkannt.'
+          data:
+            tag: '{{ id }}'
+            group: 'frigate-notification-{{ camera }}'
+            image: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg?format=android' # Android
+            attachment: # iOS
+              url: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg'
+  
+  # Warte kurz, damit Frigate Zeit hat, den Clip zu erstellen
+  - delay:
+      seconds: 5
+  
+  # Sende die aktualisierte Benachrichtigung mit Clip- und Snapshot-Links
+  - choose:
+    - conditions: "{{ not group_target }}"
+      sequence:
+        - device_id: !input notify_device
+          domain: mobile_app
+          type: notify
+          message: 'Ein {{ label }} wurde auf der {{ camera_name }} Kamera erkannt.'
+          data: 
+            tag: '{{ id }}'
+            group: 'frigate-notification-{{ camera }}'
+            url: '{{ base_url }}/vod/{{ id }}/master.m3u8' # iOS
+            clickAction: '{{ base_url }}/vod/{{ id }}/master.m3u8' # Android
+            image: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg?format=android' # Android
+            sound: none
+            attachment: # iOS
+              url: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg'
+            actions:
+              - action: URI
+                title: Video ansehen
+                uri: '{{ base_url }}/vod/{{ id }}/master.m3u8'
+              - action: URI
+                title: Snapshot ansehen
+                uri: '{{ base_url }}/api/frigate/events/{{ id }}/snapshot.jpg'
+              - action: 'silence-{{ camera }}'
+                title: Benachrichtigungen stumm
+                destructive: true
+    default:
+      - service: "notify.{{ group_target }}"
+        data:
+          message: 'Ein {{ label }} wurde auf der {{ camera_name }} Kamera erkannt.'
+          data:
+            tag: '{{ id }}'
+            group: 'frigate-notification-{{ camera }}'
+            url: '{{ base_url }}/vod/{{ id }}/master.m3u8' # iOS
+            clickAction: '{{ base_url }}/vod/{{ id }}/master.m3u8' # Android
+            image: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg?format=android' # Android
+            sound: none
+            attachment: # iOS
+              url: '{{ base_url }}/api/frigate/events/{{ id }}/thumbnail.jpg'
+            actions:
+              - action: URI
+                title: Video ansehen
+                uri: '{{ base_url }}/vod/{{ id }}/master.m3u8'
+              - action: URI
+                title: Snapshot ansehen
+                uri: '{{ base_url }}/api/frigate/events/{{ id }}/snapshot.jpg'
+              - action: 'silence-{{ camera }}'
+                title: Benachrichtigungen stumm
+                destructive: true
+  
+  # Warte auf die Stummschalt-Aktion oder den Cooldown
+  - wait_for_trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: 'silence-{{ camera }}'
+    timeout:
+      seconds: !input cooldown
+    continue_on_timeout: false
+  
+  # Wenn die Stummschalt-Aktion ausgelöst wurde, warte für die konfigurierte Zeit
+  - delay:
+      minutes: !input silence_timer
