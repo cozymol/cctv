@@ -1,20 +1,23 @@
 blueprint:
-  name: Frigate Notification
+  name: Frigate Notification (Externer Thumbnail Fix)
   description: |
-    ## Frigate Mobile App Notification
+    ## Frigate Mobile App Notification (Externer Thumbnail Fix)
+    Diese Version des Blueprints behebt das Problem, dass Thumbnails in Benachrichtigungen extern (außerhalb des WLANs) nicht angezeigt werden (404 Fehler), indem die konfigurierte Base URL verwendet wird.
+
     This blueprint will send a notification to your device when a Frigate event for the selected camera is fired. The notification will initially include the thumbnail of the detection, but will update to include actionable notifications allowing you to view the saved clip/snapshot when available, or silence the notification for a configurable amount of time.
     With this blueprint, you may send the notification to multiple devices by leaving "Device" blank and instead use a [notification group][1].
     ### Required entities:
       - Frigate Camera Name
       - Mobile App Device **or** the name of a Notification Group
+      - Base URL (Ihre externe Home Assistant URL)
     ### Optional features:
       - You can limit notifications to objects entering **any** pre-defined [zones][2] in Frigate.
       - You can specify which [zones][2] to be notified about. This must be a list (e.g.):
-        ```yaml
+        ```
         - backyard
         ```
       - You can specify what type of [objects][3] to be notified about. This must be a list (e.g.):
-        ```yaml
+        ```
         - person
         - car
         ```
@@ -25,7 +28,7 @@ blueprint:
     [2]: https://blakeblackshear.github.io/frigate/configuration/cameras#zones
     [3]: https://blakeblackshear.github.io/frigate/configuration/objects
   domain: automation
-  source_url: https://gist.github.com/hunterjm/23c1588a9f2b8b9c2a62ffc364e17f8c
+  # source_url: Optional: Fügen Sie hier Ihre eigene URL hinzu, wenn Sie den Blueprint hosten
   input:
     camera:
       name: Frigate Camera
@@ -42,12 +45,11 @@ blueprint:
       description: The name of the notification group to call.
       default: ""
     base_url:
-      name: (Optional) Base URL
+      name: Base URL (Required for external thumbnails)
       description: >
-        The external url for your Home Assistant instance. This will default to a relative
-        URL and will open the clips in the app instead of the browser, which may cause issues
-        on some devices.
-      default: ""
+        The external url for your Home Assistant instance (e.g., https://your-domain.duckdns.org or your Nabu Casa URL).
+        This is **required** for thumbnails to work outside your home network.
+      default: "" # WICHTIG: Leer lassen, wenn Sie Ihre externe URL nicht global konfiguriert haben, aber sie muss in der Automatisierung gesetzt werden!
     zone_filter:
       name: (Optional) Zone Filter
       description: Only notify if object has entered a defined zone.
@@ -123,6 +125,8 @@ condition:
   - "{{ not zones|length or zones|select('in', entered_zones)|list|length > 0 }}"
   - "{{ not labels|length or object in labels }}"
   - "{{ not presence_entity or not is_state(presence_entity, 'home') }}"
+  # Bedingung hinzugefügt, um sicherzustellen, dass eine base_url vorhanden ist (wichtig für die geänderten Bild-URLs)
+  - "{{ base_url != '' }}"
 action:
   - choose:
     - conditions: "{{ not group_target }}"
@@ -131,12 +135,15 @@ action:
           domain: mobile_app
           type: notify
           message: 'A {{ label }} was detected on the {{ camera_name }} camera.'
-          data: 
+          data:
             tag: '{{ id }}'
             group: 'frigate-notification-{{ camera }}'
-            image: '/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
+            # *** GEÄNDERT: base_url hinzugefügt ***
+            image: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
             attachment: # iOS
-              url: '/api/frigate/notifications/{{id}}/thumbnail.jpg'
+              # *** GEÄNDERT: base_url hinzugefügt ***
+              url: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg'
+              content-type: jpg # Optional, kann helfen
     default:
       - service: "notify.{{ group_target }}"
         data:
@@ -144,9 +151,12 @@ action:
           data:
             tag: '{{ id }}'
             group: 'frigate-notification-{{ camera }}'
-            image: '/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
+            # *** GEÄNDERT: base_url hinzugefügt ***
+            image: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
             attachment: # iOS
-              url: '/api/frigate/notifications/{{id}}/thumbnail.jpg'
+              # *** GEÄNDERT: base_url hinzugefügt ***
+              url: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg'
+              content-type: jpg # Optional, kann helfen
   - repeat:
       sequence:
         - wait_for_trigger:
@@ -162,7 +172,7 @@ action:
         - delay:
             hours: 0
             minutes: 0
-            seconds: 45
+            seconds: 45 # Eventuell anpassen, falls Clips/Snapshots später verfügbar sind
         - choose:
           - conditions: "{{ not group_target }}"
             sequence:
@@ -170,16 +180,19 @@ action:
                 domain: mobile_app
                 type: notify
                 message: 'A {{ label }} was detected on the {{ camera_name }} camera.'
-                data: 
+                data:
                   tag: '{{ id }}'
                   group: 'frigate-notification-{{ camera }}'
                   url: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # ios
                   clickAction: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # Android
-                  image: '/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
+                  # *** GEÄNDERT: base_url hinzugefügt ***
+                  image: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
                   sound: none
                   attachment: # iOS
-                    url: '/api/frigate/notifications/{{id}}/thumbnail.jpg'
-                    # lazy: true
+                    # *** GEÄNDERT: base_url hinzugefügt ***
+                    url: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg'
+                    content-type: jpg # Optional, kann helfen
+                    # lazy: true # Auskommentiert, da es Probleme verursachen kann
                   actions:
                     - action: URI
                       title: View Clip
@@ -199,11 +212,14 @@ action:
                   group: 'frigate-notification-{{ camera }}'
                   url: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # ios
                   clickAction: '{{base_url}}/api/frigate/notifications/{{id}}/{{camera}}/master.m3u8' # Android
-                  image: '/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
+                  # *** GEÄNDERT: base_url hinzugefügt ***
+                  image: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg?format=android' # Android
                   sound: none
                   attachment: # iOS
-                    url: '/api/frigate/notifications/{{id}}/thumbnail.jpg'
-                    # lazy: true
+                    # *** GEÄNDERT: base_url hinzugefügt ***
+                    url: '{{base_url}}/api/frigate/notifications/{{id}}/thumbnail.jpg'
+                    content-type: jpg # Optional, kann helfen
+                    # lazy: true # Auskommentiert, da es Probleme verursachen kann
                   actions:
                     - action: URI
                       title: View Clip
@@ -225,3 +241,4 @@ action:
     continue_on_timeout: false
   - delay:
       minutes: !input silence_timer
+
