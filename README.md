@@ -1,1 +1,1 @@
-# cctv
+home-assistant blueprints and configuration
